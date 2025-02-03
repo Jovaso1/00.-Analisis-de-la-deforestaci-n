@@ -143,15 +143,32 @@ def analisis_deforestacion(df):
     df['superficie_deforestada'] = df['area_total'] - df['area_con_vegetacion']
     
     # Calcular tasas de deforestación
-    df['tasa_deforestacion'] = df['superficie_deforestada'] / df['area_total']
+    df['tasa_deforestacion'] = df['superficie_deforestada'] /def analisis_deforestacion(df):
+    """
+    Realiza un análisis de la deforestación, calculando la superficie deforestada y tasas de deforestación.
+    Si las columnas esperadas no existen, muestra un mensaje de error.
     
-    # Mostrar el análisis
-    st.write("Superficie deforestada por registro:", df['superficie_deforestada'])
-    st.write("Tasa de deforestación por registro:", df['tasa_deforestacion'])
-    
-    # Resumen del análisis
-    st.write("Resumen de análisis de deforestación:")
-    st.write(df[['superficie_deforestada', 'tasa_deforestacion']].describe())
+    Args:
+        df (pd.DataFrame): DataFrame con los datos cargados.
+    """
+    # Verificar si las columnas necesarias existen
+    if 'area_total' in df.columns and 'area_con_vegetacion' in df.columns:
+        # Calcular la superficie deforestada
+        df['superficie_deforestada'] = df['area_total'] - df['area_con_vegetacion']
+        
+        # Calcular tasas de deforestación
+        df['tasa_deforestacion'] = df['superficie_deforestada'] / df['area_total']
+        
+        # Mostrar el análisis
+        st.write("Superficie deforestada por registro:", df['superficie_deforestada'])
+        st.write("Tasa de deforestación por registro:", df['tasa_deforestacion'])
+        
+        # Resumen del análisis
+        st.write("Resumen de análisis de deforestación:")
+        st.write(df[['superficie_deforestada', 'tasa_deforestacion']].describe())
+    else:
+        st.error("Las columnas 'area_total' y 'area_con_vegetacion' no están disponibles en los datos.")
+
 
 def app():
     """
