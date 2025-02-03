@@ -3,6 +3,8 @@ import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # Función para cargar datos
 def cargar_datos(archivo=None, url=None):
@@ -23,58 +25,32 @@ def cargar_datos(archivo=None, url=None):
     else:
         return None
     
-    # Eliminar filas con valores faltantes en todas las columnas
-    df = df.dropna()  # O usar df.fillna(0) para reemplazar con 0
-
+    # Limpiar valores faltantes
+    df = df.dropna()
     return df
 
-
-# Función para realizar interpolación lineal
-def interpolar_datos(df):
-    """
-    Realiza la interpolación lineal para los valores faltantes en el dataframe.
-
-    Args:
-        df (pd.DataFrame): El dataframe con valores faltantes.
-
-    Returns:
-        pd.DataFrame: El dataframe con los valores faltantes interpolados.
-    """
-    return df.interpolate(method='linear', axis=0)
-
 # Función para generar mapa
-def generar_mapa(df):
+def generar_mapa(df, lat_col, lon_col):
     """
     Genera un mapa con GeoPandas a partir de las coordenadas de latitud y longitud seleccionadas por el usuario.
 
     Args:
         df (pd.DataFrame): Datos con columnas de latitud y longitud.
+        lat_col (str): Nombre de la columna de latitud.
+        lon_col (str): Nombre de la columna de longitud.
     """
-    # Pedir al usuario seleccionar las columnas de latitud y longitud
-    lat_col = st.selectbox("Seleccione la columna de latitud:", df.columns)
-    lon_col = st.selectbox("Seleccione la columna de longitud:", df.columns)
+    df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
+    df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+    df = df.dropna(subset=[lat_col, lon_col])
 
-    if lat_col and lon_col:
-        try:
-            # Asegurarse de que las columnas sean numéricas
-            df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-            df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
+    
+    fig, ax = plt.subplots()
+    gdf.plot(marker='o', color='red', markersize=5, ax=ax)
+    ax.set_title('Mapa de Deforestación')
+    st.pyplot(fig)
 
-            # Eliminar filas con valores nulos
-            df = df.dropna(subset=[lat_col, lon_col])
-
-            # Crear un GeoDataFrame
-            gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
-
-            # Crear el gráfico de dispersión del mapa
-            fig, ax = plt.subplots()
-            gdf.plot(marker='o', color='red', markersize=5, ax=ax)
-            ax.set_title('Mapa de Deforestación')
-            st.pyplot(fig)  # Usamos st.pyplot() para renderizar el gráfico en Streamlit
-        except KeyError as e:
-            st.error(f"Error al crear el mapa: {e}")
-
-# Función para generar gráfico de torta
+# Función para crear gráfico de torta según tipo de vegetación
 def generar_grafico_torta(df, columna):
     """
     Genera un gráfico de torta para una columna categórica.
@@ -88,7 +64,49 @@ def generar_grafico_torta(df, columna):
     categoria_counts.plot.pie(autopct='%1.1f%%', startangle=90, ax=ax)
     ax.set_ylabel('')
     ax.set_title(f'Distribución de {columna}')
-    st.pyplot(fig)  # Usamos st.pyplot() para renderizar el gráfico en Streamlit
+    st.pyplot(fig)
+
+# Función para análisis de clúster
+def analisis_cluster(df, variables):
+    """
+    Realiza un análisis de clúster sobre las superficies deforestadas.
+
+    Args:
+        df (pd.DataFrame): El dataframe con los datos de superficie deforestada.
+        variables (list): Lista de columnas a usar para el análisis de clúster.
+    """
+    # Seleccionamos las variables de interés
+    df_cluster = df[variables].dropna()
+
+    # Escalamos las variables
+    scaler = StandardScaler()
+    df_cluster_scaled = scaler.fit_transform(df_cluster)
+
+    # Aplicamos KMeans
+    kmeans = KMeans(n_clusters=3)  # Número de clústeres (puedes ajustarlo)
+    df['cluster'] = kmeans.fit_predict(df_cluster_scaled)
+
+    # Mostrar clústeres en un mapa
+    fig, ax = plt.subplots()
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['longitud'], df['latitud']))
+    gdf.plot(column='cluster', cmap='viridis', legend=True, ax=ax)
+    ax.set_title('Clúster de Zonas Deforestadas')
+    st.pyplot(fig)
+
+# Función para mapear zonas deforestadas por variables (vegetación, altitud, precipitación)
+def generar_mapa_variable(df, variable):
+    """
+    Genera un mapa de las zonas deforestadas según una variable seleccionada (vegetación, altitud, etc.).
+
+    Args:
+        df (pd.DataFrame): El dataframe con la información de deforestación.
+        variable (str): Nombre de la variable a mapear (vegetación, altitud, etc.).
+    """
+    if variable in df.columns:
+        fig, ax = plt.subplots()
+        df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='viridis', ax=ax)
+        ax.set_title(f'Zonas Deforestadas por {variable}')
+        st.pyplot(fig)
 
 # Configuración de la interfaz de Streamlit
 def app():
@@ -112,23 +130,26 @@ def app():
             st.write("Datos cargados:", df.head())
 
     if df is not None:
-        # Interpolación de los datos
-        df_interpolado = interpolar_datos(df)
-
         # Selección de análisis a realizar
         analisis_seleccionados = st.multiselect(
             'Seleccione los análisis a realizar:',
-            ['Generar mapa', 'Generar gráfico de torta'],
-            default=['Generar mapa']
+            ['Generar mapa por variable', 'Generar gráfico de torta', 'Análisis de clúster'],
+            default=['Generar mapa por variable']
         )
 
         # Generar análisis según selección
-        if 'Generar mapa' in analisis_seleccionados:
-            generar_mapa(df_interpolado)
+        if 'Generar mapa por variable' in analisis_seleccionados:
+            variable_seleccionada = st.selectbox("Seleccione la variable para el mapa:", ['vegetacion', 'altitud', 'precipitacion'])
+            generar_mapa_variable(df, variable_seleccionada)
 
         if 'Generar gráfico de torta' in analisis_seleccionados:
-            columna_torta = st.selectbox("Seleccione la columna para el gráfico de torta:", df_interpolado.columns)
-            generar_grafico_torta(df_interpolado, columna_torta)
+            columna_torta = st.selectbox("Seleccione la columna para el gráfico de torta:", df.columns)
+            generar_grafico_torta(df, columna_torta)
+
+        if 'Análisis de clúster' in analisis_seleccionados:
+            variables_cluster = st.multiselect("Seleccione las variables para el análisis de clúster:", df.columns)
+            if len(variables_cluster) > 0:
+                analisis_cluster(df, variables_cluster)
 
 if __name__ == "__main__":
     app()
