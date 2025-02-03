@@ -36,7 +36,6 @@ def interpolar_datos(df):
     return df.interpolate(method='linear', axis=0)
 
 # Función para generar mapa
-# Función para generar mapa
 def generar_mapa(df):
     """
     Genera un mapa con GeoPandas a partir de las coordenadas de latitud y longitud seleccionadas por el usuario.
@@ -50,12 +49,20 @@ def generar_mapa(df):
 
     if lat_col and lon_col:
         try:
+            # Asegurarse de que las columnas sean numéricas
+            df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
+            df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+
+            # Eliminar filas con valores nulos
+            df = df.dropna(subset=[lat_col, lon_col])
+
             # Crear un GeoDataFrame
             gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
             gdf.plot(marker='o', color='red', markersize=5)
             plt.show()
         except KeyError as e:
             st.error(f"Error al crear el mapa: {e}")
+
 
 
 # Función para crear gráfico de torta
