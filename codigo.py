@@ -65,14 +65,16 @@ def generar_mapa(df):
 
             # Crear un GeoDataFrame
             gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
-            gdf.plot(marker='o', color='red', markersize=5)
-            plt.show()
+
+            # Crear el gráfico de dispersión del mapa
+            fig, ax = plt.subplots()
+            gdf.plot(marker='o', color='red', markersize=5, ax=ax)
+            ax.set_title('Mapa de Deforestación')
+            st.pyplot(fig)  # Usamos st.pyplot() para renderizar el gráfico en Streamlit
         except KeyError as e:
             st.error(f"Error al crear el mapa: {e}")
 
-
-
-# Función para crear gráfico de torta
+# Función para generar gráfico de torta
 def generar_grafico_torta(df, columna):
     """
     Genera un gráfico de torta para una columna categórica.
@@ -82,10 +84,11 @@ def generar_grafico_torta(df, columna):
         columna (str): Nombre de la columna categórica.
     """
     categoria_counts = df[columna].value_counts()
-    categoria_counts.plot.pie(autopct='%1.1f%%', startangle=90)
-    plt.ylabel('')
-    plt.title(f'Distribución de {columna}')
-    plt.show()
+    fig, ax = plt.subplots()
+    categoria_counts.plot.pie(autopct='%1.1f%%', startangle=90, ax=ax)
+    ax.set_ylabel('')
+    ax.set_title(f'Distribución de {columna}')
+    st.pyplot(fig)  # Usamos st.pyplot() para renderizar el gráfico en Streamlit
 
 # Configuración de la interfaz de Streamlit
 def app():
