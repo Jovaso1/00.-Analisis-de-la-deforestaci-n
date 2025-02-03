@@ -1,4 +1,4 @@
-¿import pandas as pd
+import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.express as px
