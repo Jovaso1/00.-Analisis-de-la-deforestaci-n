@@ -6,17 +6,16 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
-# Función para cargar datos
 def cargar_datos(archivo=None, url=None):
     """
-    Carga los datos desde un archivo CSV o una URL.
+    Carga los datos desde un archivo CSV o una URL y convierte las columnas de tipo `object` a `str` o `category`.
 
     Args:
         archivo (str): Ruta del archivo CSV local.
         url (str): URL del archivo CSV en línea.
 
     Returns:
-        pd.DataFrame: Datos cargados.
+        pd.DataFrame: Datos cargados con tipos de datos compatibles con Arrow.
     """
     if archivo:
         df = pd.read_csv(archivo)
@@ -25,9 +24,14 @@ def cargar_datos(archivo=None, url=None):
     else:
         return None
     
+    # Convertir todas las columnas de tipo `object` a `str` o `category` sin usar un ciclo for
+    df.loc[:, df.select_dtypes(include=['object']).columns] = df.select_dtypes(include=['object']).apply(lambda x: x.astype('str'))
+    
     # Limpiar valores faltantes
     df = df.dropna()
+    
     return df
+
 
 # Función para generar mapa por variable
 def generar_mapa_variable(df, variable):
