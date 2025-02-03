@@ -104,6 +104,8 @@ def app():
     """
     st.title('Análisis de Deforestación con Imágenes de Satélite')
 
+    df = None  # Asegurarse de que df esté inicializado
+
     # Opción para cargar archivo o leer desde URL
     opcion_carga = st.selectbox("Seleccione cómo cargar los datos:", ['Cargar archivo', 'Leer desde URL'])
     
