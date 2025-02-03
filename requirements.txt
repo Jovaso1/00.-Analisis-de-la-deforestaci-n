@@ -6,3 +6,4 @@ matplotlib
 numpy
 KMeans
 StandardScaler
+plotly
