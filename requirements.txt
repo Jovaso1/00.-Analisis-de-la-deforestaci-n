@@ -4,3 +4,5 @@ pandas
 geopandas
 matplotlib
 numpy
+KMeans
+StandardScaler
