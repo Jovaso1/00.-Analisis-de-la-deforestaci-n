@@ -1,10 +1,7 @@
-import streamlit as st
 import pandas as pd
 import geopandas as gpd
+import streamlit as st
 import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
 
 def cargar_datos(archivo=None, url=None):
     """
@@ -44,136 +41,55 @@ def cargar_datos(archivo=None, url=None):
     
     return df
 
-    
-    # Convertir las columnas de tipo 'object' a 'str' o 'category'
-    object_cols = df.select_dtypes(include=['object']).columns
-    df[object_cols] = df[object_cols].astype('str')  # Convertir a str, o usa 'category' si aplica
-    
-    # Asegurarnos de que las columnas numéricas como latitud y longitud sean de tipo float
-    num_cols = df.select_dtypes(include=['float64', 'int64']).columns
-    df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')  # Convertir a numérico y manejar errores
-    
-    # Limpiar valores faltantes
-    df = df.dropna()
-    
-    return df
 
-
-
-# Función para generar mapa por variable
-def generar_mapa_variable(df, variable):
+def generar_mapa(df, lat_col, lon_col, variable_col):
     """
-    Genera un mapa de las zonas deforestadas según una variable seleccionada (vegetación, altitud, etc.).
+    Genera un mapa de la deforestación según las variables seleccionadas por el usuario.
 
     Args:
-        df (pd.DataFrame): El dataframe con la información de deforestación.
-        variable (str): Nombre de la variable a mapear (vegetación, altitud, etc.).
+        df (pd.DataFrame): El DataFrame con los datos cargados.
+        lat_col (str): El nombre de la columna con las coordenadas de latitud.
+        lon_col (str): El nombre de la columna con las coordenadas de longitud.
+        variable_col (str): El nombre de la columna que contiene la variable para el mapa.
     """
-    if variable in df.columns:
-        # Verificar si la variable es numérica o categórica
-        if pd.api.types.is_numeric_dtype(df[variable]):
-            # Generar mapa de color continuo si la variable es numérica
-            fig, ax = plt.subplots()
-            df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='viridis', ax=ax, alpha=0.7)
-            ax.set_title(f'Zonas Deforestadas por {variable}')
-            st.pyplot(fig)
-        else:
-            # Generar mapa de color discreto si la variable es categórica
-            fig, ax = plt.subplots()
-            df[variable] = df[variable].astype('category')
-            df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='Set1', ax=ax, alpha=0.7)
-            ax.set_title(f'Zonas Deforestadas por {variable}')
-            st.pyplot(fig)
-
-# Función para generar gráfico de torta según tipo de vegetación
-def generar_grafico_torta(df, columna):
-    """
-    Genera un gráfico de torta para una columna categórica.
-
-    Args:
-        df (pd.DataFrame): El dataframe con la columna categórica.
-        columna (str): Nombre de la columna categórica.
-    """
-    categoria_counts = df[columna].value_counts()
-    fig, ax = plt.subplots()
-    categoria_counts.plot.pie(autopct='%1.1f%%', startangle=90, ax=ax)
-    ax.set_ylabel('')
-    ax.set_title(f'Distribución de {columna}')
+    # Verificar que las columnas existan en el DataFrame
+    if lat_col not in df.columns or lon_col not in df.columns or variable_col not in df.columns:
+        st.error("Las columnas seleccionadas no existen en los datos.")
+        return
+    
+    # Crear un GeoDataFrame con las coordenadas de latitud y longitud
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
+    
+    # Asignar la variable seleccionada como la de visualización en el mapa
+    gdf[variable_col] = df[variable_col]
+    
+    # Mostrar el mapa
+    fig, ax = plt.subplots(figsize=(10, 10))
+    gdf.plot(column=variable_col, ax=ax, legend=True,
+             legend_kwds={'label': f"Valores de {variable_col}", 'orientation': "horizontal"})
     st.pyplot(fig)
 
-# Función para análisis de clúster
-def analisis_cluster(df, variables):
-    """
-    Realiza un análisis de clúster sobre las superficies deforestadas.
 
-    Args:
-        df (pd.DataFrame): El dataframe con los datos de superficie deforestada.
-        variables (list): Lista de columnas a usar para el análisis de clúster.
-    """
-    # Seleccionamos las variables de interés
-    df_cluster = df[variables].dropna()
-
-    # Escalamos las variables
-    scaler = StandardScaler()
-    df_cluster_scaled = scaler.fit_transform(df_cluster)
-
-    # Aplicamos KMeans
-    kmeans = KMeans(n_clusters=3)  # Número de clústeres (puedes ajustarlo)
-    df['cluster'] = kmeans.fit_predict(df_cluster_scaled)
-
-    # Mostrar clústeres en un mapa
-    fig, ax = plt.subplots()
-    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['longitud'], df['latitud']))
-    gdf.plot(column='cluster', cmap='viridis', legend=True, ax=ax)
-    ax.set_title('Clúster de Zonas Deforestadas')
-    st.pyplot(fig)
-
-# Configuración de la interfaz de Streamlit
 def app():
-    """
-    Función principal que maneja la interfaz y el flujo de la aplicación.
-    """
-    st.title('Análisis de Deforestación con Imágenes de Satélite')
+    # Cargar los datos desde un archivo o URL
+    archivo = st.file_uploader("Sube tu archivo CSV", type=["csv"])
+    if archivo:
+        df = cargar_datos(archivo=archivo)
 
-    df = None  # Asegurarse de que df esté inicializado
+        # Verificar que los datos hayan sido cargados correctamente
+        if df is not None:
+            st.write("Primeras filas de los datos cargados:")
+            st.write(df.head())
 
-    # Opción para cargar archivo o leer desde URL
-    opcion_carga = st.selectbox("Seleccione cómo cargar los datos:", ['Cargar archivo', 'Leer desde URL'])
-    
-    if opcion_carga == 'Cargar archivo':
-        archivo = st.file_uploader("Subir archivo CSV", type='csv')
-        if archivo:
-            df = cargar_datos(archivo=archivo)
-            st.write("Datos cargados:", df.head())
-            st.write("Tipos de datos de cada columna:", df.dtypes)
-    elif opcion_carga == 'Leer desde URL':
-        url = st.text_input("Introduzca la URL del archivo CSV")
-        if url:
-            df = cargar_datos(url=url)
-            st.write("Datos cargados:", df.head())
-            st.write("Tipos de datos de cada columna:", df.dtypes)
+            # Permitir al usuario seleccionar las columnas para el mapa
+            latitud_col = st.selectbox("Selecciona la columna de latitud", df.columns)
+            longitud_col = st.selectbox("Selecciona la columna de longitud", df.columns)
+            variable_col = st.selectbox("Selecciona la variable para visualizar en el mapa", df.columns)
+            
+            # Generar el mapa
+            if latitud_col and longitud_col and variable_col:
+                generar_mapa(df, latitud_col, longitud_col, variable_col)
 
-    if df is not None:
-        # Selección de análisis a realizar
-        analisis_seleccionados = st.multiselect(
-            'Seleccione los análisis a realizar:',
-            ['Generar mapa por variable', 'Generar gráfico de torta', 'Análisis de clúster'],
-            default=['Generar mapa por variable']
-        )
-
-        # Generar análisis según selección
-        if 'Generar mapa por variable' in analisis_seleccionados:
-            variable_seleccionada = st.selectbox("Seleccione la variable para el mapa:", ['vegetacion', 'altitud', 'precipitacion'])
-            generar_mapa_variable(df, variable_seleccionada)
-
-        if 'Generar gráfico de torta' in analisis_seleccionados:
-            columna_torta = st.selectbox("Seleccione la columna para el gráfico de torta:", df.columns)
-            generar_grafico_torta(df, columna_torta)
-
-        if 'Análisis de clúster' in analisis_seleccionados:
-            variables_cluster = st.multiselect("Seleccione las variables para el análisis de clúster:", df.columns)
-            if len(variables_cluster) > 0:
-                analisis_cluster(df, variables_cluster)
 
 if __name__ == "__main__":
     app()
