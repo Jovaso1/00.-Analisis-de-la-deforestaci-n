@@ -1,4 +1,4 @@
-import pandas as pd
+¿import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import plotly.express as px
@@ -44,13 +44,20 @@ def cargar_datos(archivo=None, url=None):
     
     return df
 
-def generar_mapa(df):
+def generar_mapa(df, variables=None, rango=None):
     """
     Genera un mapa interactivo basado en las coordenadas de latitud y longitud y otras variables seleccionadas.
 
     Args:
         df (pd.DataFrame): DataFrame con los datos cargados.
+        variables (list): Lista de variables seleccionadas por el usuario para el mapa.
+        rango (dict): Rango de valores seleccionados por el usuario para filtrar los datos en el mapa.
     """
+    # Filtrar los datos según el rango si es proporcionado
+    if rango:
+        for var, (min_val, max_val) in rango.items():
+            df = df[(df[var] >= min_val) & (df[var] <= max_val)]
+    
     # Selección de columnas disponibles para las variables
     lat_col = st.selectbox("Selecciona la columna de latitud", df.columns.tolist())
     lon_col = st.selectbox("Selecciona la columna de longitud", df.columns.tolist())
@@ -60,12 +67,12 @@ def generar_mapa(df):
         st.error("Las columnas seleccionadas no existen en los datos")
         return
     
-    # Selección de la columna adicional para personalizar el mapa
-    var_col = st.selectbox("Selecciona la columna para visualizar en el mapa", df.columns.tolist())
-    
     # Crear GeoDataFrame con las coordenadas seleccionadas
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
 
+    # Seleccionar las variables para la visualización
+    var_col = st.selectbox("Selecciona la columna para visualizar en el mapa", variables or df.columns.tolist())
+    
     # Plotear el mapa
     gdf.plot(column=var_col, legend=True, figsize=(10, 8))
     st.pyplot()
@@ -125,6 +132,27 @@ def grafico_torta(df):
     ax.set_title("Distribución de Tipos de Vegetación")
     st.pyplot(fig)
 
+def analisis_deforestacion(df):
+    """
+    Realiza un análisis de la deforestación, calculando la superficie deforestada y tasas de deforestación.
+
+    Args:
+        df (pd.DataFrame): DataFrame con los datos cargados.
+    """
+    # Calcular la superficie deforestada
+    df['superficie_deforestada'] = df['area_total'] - df['area_con_vegetacion']
+    
+    # Calcular tasas de deforestación
+    df['tasa_deforestacion'] = df['superficie_deforestada'] / df['area_total']
+    
+    # Mostrar el análisis
+    st.write("Superficie deforestada por registro:", df['superficie_deforestada'])
+    st.write("Tasa de deforestación por registro:", df['tasa_deforestacion'])
+    
+    # Resumen del análisis
+    st.write("Resumen de análisis de deforestación:")
+    st.write(df[['superficie_deforestada', 'tasa_deforestacion']].describe())
+
 def app():
     """
     Función principal de la aplicación.
@@ -145,9 +173,13 @@ def app():
         # Mostrar tipos de datos
         st.write("Tipos de datos de las columnas:", df.dtypes)
         
+        # Generar análisis de deforestación
+        if df is not None:
+            analisis_deforestacion(df)
+        
         # Generar mapa
         if df is not None:
-            generar_mapa(df)
+            generar_mapa(df, variables=df.columns.tolist())
             
         # Realizar análisis de clúster
         if df is not None:
