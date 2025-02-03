@@ -29,28 +29,32 @@ def cargar_datos(archivo=None, url=None):
     df = df.dropna()
     return df
 
-# Función para generar mapa
-def generar_mapa(df, lat_col, lon_col):
+# Función para generar mapa por variable
+def generar_mapa_variable(df, variable):
     """
-    Genera un mapa con GeoPandas a partir de las coordenadas de latitud y longitud seleccionadas por el usuario.
+    Genera un mapa de las zonas deforestadas según una variable seleccionada (vegetación, altitud, etc.).
 
     Args:
-        df (pd.DataFrame): Datos con columnas de latitud y longitud.
-        lat_col (str): Nombre de la columna de latitud.
-        lon_col (str): Nombre de la columna de longitud.
+        df (pd.DataFrame): El dataframe con la información de deforestación.
+        variable (str): Nombre de la variable a mapear (vegetación, altitud, etc.).
     """
-    df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-    df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
-    df = df.dropna(subset=[lat_col, lon_col])
+    if variable in df.columns:
+        # Verificar si la variable es numérica o categórica
+        if pd.api.types.is_numeric_dtype(df[variable]):
+            # Generar mapa de color continuo si la variable es numérica
+            fig, ax = plt.subplots()
+            df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='viridis', ax=ax, alpha=0.7)
+            ax.set_title(f'Zonas Deforestadas por {variable}')
+            st.pyplot(fig)
+        else:
+            # Generar mapa de color discreto si la variable es categórica
+            fig, ax = plt.subplots()
+            df[variable] = df[variable].astype('category')
+            df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='Set1', ax=ax, alpha=0.7)
+            ax.set_title(f'Zonas Deforestadas por {variable}')
+            st.pyplot(fig)
 
-    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col]))
-    
-    fig, ax = plt.subplots()
-    gdf.plot(marker='o', color='red', markersize=5, ax=ax)
-    ax.set_title('Mapa de Deforestación')
-    st.pyplot(fig)
-
-# Función para crear gráfico de torta según tipo de vegetación
+# Función para generar gráfico de torta según tipo de vegetación
 def generar_grafico_torta(df, columna):
     """
     Genera un gráfico de torta para una columna categórica.
@@ -93,21 +97,6 @@ def analisis_cluster(df, variables):
     ax.set_title('Clúster de Zonas Deforestadas')
     st.pyplot(fig)
 
-# Función para mapear zonas deforestadas por variables (vegetación, altitud, precipitación)
-def generar_mapa_variable(df, variable):
-    """
-    Genera un mapa de las zonas deforestadas según una variable seleccionada (vegetación, altitud, etc.).
-
-    Args:
-        df (pd.DataFrame): El dataframe con la información de deforestación.
-        variable (str): Nombre de la variable a mapear (vegetación, altitud, etc.).
-    """
-    if variable in df.columns:
-        fig, ax = plt.subplots()
-        df.plot.scatter(x='longitud', y='latitud', c=variable, cmap='viridis', ax=ax)
-        ax.set_title(f'Zonas Deforestadas por {variable}')
-        st.pyplot(fig)
-
 # Configuración de la interfaz de Streamlit
 def app():
     """
@@ -123,11 +112,13 @@ def app():
         if archivo:
             df = cargar_datos(archivo=archivo)
             st.write("Datos cargados:", df.head())
+            st.write("Tipos de datos de cada columna:", df.dtypes)
     elif opcion_carga == 'Leer desde URL':
         url = st.text_input("Introduzca la URL del archivo CSV")
         if url:
             df = cargar_datos(url=url)
             st.write("Datos cargados:", df.head())
+            st.write("Tipos de datos de cada columna:", df.dtypes)
 
     if df is not None:
         # Selección de análisis a realizar
