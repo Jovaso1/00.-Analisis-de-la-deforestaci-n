@@ -25,6 +25,26 @@ def cargar_datos(archivo=None, url=None):
     else:
         return None
     
+    # Normalizar los nombres de las columnas (eliminar espacios y convertir a minúsculas)
+    df.columns = df.columns.str.strip().str.lower()
+    
+    # Verificar los nombres de las columnas disponibles
+    st.write("Columnas disponibles:", df.columns.tolist())
+    
+    # Convertir las columnas de tipo 'object' a 'str' o 'category'
+    object_cols = df.select_dtypes(include=['object']).columns
+    df[object_cols] = df[object_cols].astype('str')  # Convertir a str, o usa 'category' si aplica
+    
+    # Asegurarnos de que las columnas numéricas como latitud y longitud sean de tipo float
+    num_cols = df.select_dtypes(include=['float64', 'int64']).columns
+    df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')  # Convertir a numérico y manejar errores
+    
+    # Limpiar valores faltantes
+    df = df.dropna()
+    
+    return df
+
+    
     # Convertir las columnas de tipo 'object' a 'str' o 'category'
     object_cols = df.select_dtypes(include=['object']).columns
     df[object_cols] = df[object_cols].astype('str')  # Convertir a str, o usa 'category' si aplica
