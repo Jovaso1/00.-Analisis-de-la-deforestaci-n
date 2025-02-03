@@ -17,10 +17,17 @@ def cargar_datos(archivo=None, url=None):
         pd.DataFrame: Datos cargados.
     """
     if archivo:
-        return pd.read_csv(archivo)
+        df = pd.read_csv(archivo)
     elif url:
-        return pd.read_csv(url)
-    return None
+        df = pd.read_csv(url)
+    else:
+        return None
+    
+    # Eliminar filas con valores faltantes en todas las columnas
+    df = df.dropna()  # O usar df.fillna(0) para reemplazar con 0
+
+    return df
+
 
 # Función para realizar interpolación lineal
 def interpolar_datos(df):
