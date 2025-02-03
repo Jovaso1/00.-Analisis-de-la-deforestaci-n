@@ -1,8 +1,8 @@
-import streamlit as st
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import numpy as np
+import plotly.express as px
+import streamlit as st
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
@@ -10,9 +10,11 @@ def cargar_datos(archivo=None, url=None):
     """
     Carga los datos desde un archivo CSV o una URL, convierte las columnas de tipo `object` a `str` o `category`,
     y asegura la compatibilidad de las columnas numéricas con Arrow.
+
     Args:
         archivo (str): Ruta del archivo CSV local.
         url (str): URL del archivo CSV en línea.
+
     Returns:
         pd.DataFrame: Datos cargados con tipos de datos compatibles con Arrow.
     """
@@ -22,27 +24,13 @@ def cargar_datos(archivo=None, url=None):
         df = pd.read_csv(url)
     else:
         return None
-
+    
     # Normalizar los nombres de las columnas (eliminar espacios y convertir a minúsculas)
     df.columns = df.columns.str.strip().str.lower()
-
+    
     # Verificar los nombres de las columnas disponibles
     st.write("Columnas disponibles:", df.columns.tolist())
-
-    # Convertir las columnas de tipo 'object' a 'str' o 'category'
-    object_cols = df.select_dtypes(include=['object']).columns
-    df[object_cols] = df[object_cols].astype('str')  # Convertir a str, o usa 'category' si aplica
-
-    # Asegurarnos de que las columnas numéricas como latitud y longitud sean de tipo float
-    num_cols = df.select_dtypes(include=['float64', 'int64']).columns
-    df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')  # Convertir a numérico y manejar errores
-
-    # Limpiar valores faltantes
-    df = df.dropna()
-
-    return df
-
-
+    
     # Convertir las columnas de tipo 'object' a 'str' o 'category'
     object_cols = df.select_dtypes(include=['object']).columns
     df[object_cols] = df[object_cols].astype('str')  # Convertir a str, o usa 'category' si aplica
@@ -51,11 +39,11 @@ def cargar_datos(archivo=None, url=None):
     num_cols = df.select_dtypes(include=['float64', 'int64']).columns
     df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')  # Convertir a numérico y manejar errores
     
-    # Limpiar valores faltantes
-    df = df.dropna()
+    # Limpiar valores faltantes mediante interpolación
+    df = df.interpolate(method='linear', limit_direction='forward', axis=0)
     
     return df
-# Función para generar mapa por variable
+
 def generar_mapa(df):
     """
     Genera un mapa interactivo basado en las coordenadas de latitud y longitud y otras variables seleccionadas.
@@ -81,83 +69,93 @@ def generar_mapa(df):
     # Plotear el mapa
     gdf.plot(column=var_col, legend=True, figsize=(10, 8))
     st.pyplot()
-# Función para generar gráfico de torta según tipo de vegetación
-def generar_grafico_torta(df, columna):
+
+def analisis_cluster(df):
     """
-    Genera un gráfico de torta para una columna categórica.
+    Realiza un análisis de clúster para las superficies deforestadas, utilizando KMeans.
+
     Args:
-        df (pd.DataFrame): El dataframe con la columna categórica.
-        columna (str): Nombre de la columna categórica.
+        df (pd.DataFrame): DataFrame con los datos cargados.
     """
-    categoria_counts = df[columna].value_counts()
-    fig, ax = plt.subplots()
-    categoria_counts.plot.pie(autopct='%1.1f%%', startangle=90, ax=ax)
-    ax.set_ylabel('')
-    ax.set_title(f'Distribución de {columna}')
-    st.pyplot(fig)
+    # Seleccionar columnas para el análisis
+    variables = st.multiselect("Selecciona las variables para el análisis de clúster", df.columns.tolist())
     
-# Función para análisis de clúster
-def analisis_cluster(df, variables):
-    """
-    Realiza un análisis de clúster sobre las superficies deforestadas.
-    Args:
-        df (pd.DataFrame): El dataframe con los datos de superficie deforestada.
-        variables (list): Lista de columnas a usar para el análisis de clúster.
-    """
-    # Seleccionamos las variables de interés
-    df_cluster = df[variables].dropna()
-    # Escalamos las variables
+    # Verificar si hay al menos dos variables seleccionadas
+    if len(variables) < 2:
+        st.error("Se deben seleccionar al menos dos variables para el análisis de clúster.")
+        return
+    
+    # Preprocesar los datos para el análisis
+    df_cluster = df[variables].dropna()  # Eliminar filas con valores faltantes
+    
+    # Estandarizar los datos
     scaler = StandardScaler()
     df_cluster_scaled = scaler.fit_transform(df_cluster)
-    # Aplicamos KMeans
-    kmeans = KMeans(n_clusters=3)  # Número de clústeres (puedes ajustarlo)
-    df['cluster'] = kmeans.fit_predict(df_cluster_scaled)
-    # Mostrar clústeres en un mapa
-    fig, ax = plt.subplots()
-    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['longitud'], df['latitud']))
-    gdf.plot(column='cluster', cmap='viridis', legend=True, ax=ax)
-    ax.set_title('Clúster de Zonas Deforestadas')
-    st.pyplot(fig)
     
-# Configuración de la interfaz de Streamlit
+    # Realizar el análisis de clúster con KMeans
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    df['cluster'] = kmeans.fit_predict(df_cluster_scaled)
+    
+    # Visualizar los clústeres
+    st.write("Clústeres identificados:", df['cluster'].value_counts())
+    
+    # Graficar los clústeres
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(df[variables[0]], df[variables[1]], c=df['cluster'], cmap='viridis')
+    ax.set_xlabel(variables[0])
+    ax.set_ylabel(variables[1])
+    ax.set_title("Análisis de Clúster de Deforestación")
+    st.pyplot(fig)
+
+def grafico_torta(df):
+    """
+    Genera un gráfico de torta que muestra la distribución de tipos de vegetación.
+
+    Args:
+        df (pd.DataFrame): DataFrame con los datos cargados.
+    """
+    # Seleccionar la columna para el gráfico de torta
+    veg_col = st.selectbox("Selecciona la columna de tipo de vegetación", df.columns.tolist())
+    
+    # Generar el gráfico de torta
+    vegetacion = df[veg_col].value_counts()
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(vegetacion, labels=vegetacion.index, autopct='%1.1f%%', startangle=90)
+    ax.axis('equal')  # Asegurar que el gráfico sea circular
+    ax.set_title("Distribución de Tipos de Vegetación")
+    st.pyplot(fig)
+
 def app():
     """
-    Función principal que maneja la interfaz y el flujo de la aplicación.
+    Función principal de la aplicación.
+    Permite cargar los datos, elegir variables para análisis y generar mapas y gráficos.
     """
-    st.title('Análisis de Deforestación con Imágenes de Satélite')
-    df = None  # Asegurarse de que df esté inicializado
-    # Opción para cargar archivo o leer desde URL
-    opcion_carga = st.selectbox("Seleccione cómo cargar los datos:", ['Cargar archivo', 'Leer desde URL'])
+    st.title("Análisis de la Deforestación")
     
-    if opcion_carga == 'Cargar archivo':
-        archivo = st.file_uploader("Subir archivo CSV", type='csv')
-        if archivo:
-            df = cargar_datos(archivo=archivo)
-            st.write("Datos cargados:", df.head())
-            st.write("Tipos de datos de cada columna:", df.dtypes)
-    elif opcion_carga == 'Leer desde URL':
-        url = st.text_input("Introduzca la URL del archivo CSV")
-        if url:
-            df = cargar_datos(url=url)
-            st.write("Datos cargados:", df.head())
-            st.write("Tipos de datos de cada columna:", df.dtypes)
-    if df is not None:
-        # Selección de análisis a realizar
-        analisis_seleccionados = st.multiselect(
-            'Seleccione los análisis a realizar:',
-            ['Generar mapa por variable', 'Generar gráfico de torta', 'Análisis de clúster'],
-            default=['Generar mapa por variable']
-        )
-        # Generar análisis según selección
-        if 'Generar mapa por variable' in analisis_seleccionados:
-            variable_seleccionada = st.selectbox("Seleccione la variable para el mapa:", ['vegetacion', 'altitud', 'precipitacion'])
-            generar_mapa_variable(df, variable_seleccionada)
-        if 'Generar gráfico de torta' in analisis_seleccionados:
-            columna_torta = st.selectbox("Seleccione la columna para el gráfico de torta:", df.columns)
-            generar_grafico_torta(df, columna_torta)
-        if 'Análisis de clúster' in analisis_seleccionados:
-            variables_cluster = st.multiselect("Seleccione las variables para el análisis de clúster:", df.columns)
-            if len(variables_cluster) > 0:
-                analisis_cluster(df, variables_cluster)
+    # Subir archivo CSV
+    archivo = st.file_uploader("Sube tu archivo CSV", type=["csv"])
+    
+    # Cargar datos
+    if archivo:
+        df = cargar_datos(archivo=archivo)
+        
+        # Mostrar los primeros registros
+        st.write("Primeros registros de los datos", df.head())
+        
+        # Mostrar tipos de datos
+        st.write("Tipos de datos de las columnas:", df.dtypes)
+        
+        # Generar mapa
+        if df is not None:
+            generar_mapa(df)
+            
+        # Realizar análisis de clúster
+        if df is not None:
+            analisis_cluster(df)
+        
+        # Mostrar gráfico de torta
+        if df is not None:
+            grafico_torta(df)
+
 if __name__ == "__main__":
     app()
